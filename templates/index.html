@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="it" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yu-Gi-Oh! Collection</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .card-img { height: 250px; object-fit: contain; cursor: pointer; }
+        .card-box { text-align: center; margin-bottom: 20px; }
+        #filter-panel { background-color: #2b3035; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+        .ban-badge {
+            position: absolute;
+            top: -6px;
+            left: -6px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: #dc3545; /* Rosso divieto */
+            border: 2px solid white;
+            color: #ffc107; /* Giallo numeri */
+            font-weight: 900;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            z-index: 10;
+            pointer-events: none; /* Per non bloccare il click sull'immagine */
+        }
+        .ban-badge.banned {
+            color: white;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+<div class="container mt-4">
+    <h1 class="text-center mb-4">Yu-Gi-Oh! Manager</h1>
+    
+    <!-- Menu -->
+    <ul class="nav nav-tabs mb-3" id="myTab">
+        <li class="nav-item"><a class="nav-link active" onclick="showTab('collection')" href="#">La Mia Collezione</a></li>
+        <li class="nav-item"><a class="nav-link" onclick="showTab('wishlist')" href="#">Lista Desideri</a></li>
+        <li class="nav-item"><a class="nav-link" onclick="showTab('deckbuilder')" href="#">Deck Builder</a></li>
+        <li class="nav-item"><a class="nav-link" onclick="showTab('search')" href="#">Cerca Nuove Carte</a></li>
+    </ul>
+
+    <!-- PANNELLO FILTRI -->
+    <div id="filter-panel" class="row g-2">
+        <div class="col-12 d-flex flex-wrap justify-content-between align-items-center border-bottom border-secondary pb-2 mb-2">
+            <span id="counterDisplay" class="badge bg-primary fs-6 mb-2 mb-md-0">0 / 0 Copie visualizzate</span>
+            <div class="d-flex align-items-center gap-2">
+                <label class="text-nowrap mb-0 fw-bold">Ordina per:</label>
+                <select id="fSort" class="form-select form-select-sm w-auto" onchange="sortCards()">
+                    <option value="alpha">Alfabetico (A-Z)</option>
+                    <option value="type">Tipo di Carta (Logica YGO)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-3">
+            <input type="text" id="searchInputLocal" class="form-control" placeholder="Cerca nome..." onkeyup="applyFilters()">
+        </div>
+        <div class="col-6 col-md-2">
+            <select id="fType" class="form-select" onchange="updateSubFilters(); applyFilters();">
+                <option value="">Tutte le Carte</option>
+                <option value="Mostro">Mostri</option>
+                <option value="Magia">Magie</option>
+                <option value="Trappola">Trappole</option>
+            </select>
+        </div>
+        <div class="col-6 col-md-2">
+            <select id="fSubType" class="form-select" onchange="applyFilters()">
+                <option value="">Sottotipo</option>
+            </select>
+        </div>
+        <div class="col-4 col-md-1">
+            <select id="fLevel" class="form-select" onchange="applyFilters()">
+                <option value="">Liv/Rnk</option>
+            </select>
+        </div>
+        <div class="col-4 col-md-2">
+            <select id="fAttribute" class="form-select" onchange="applyFilters()">
+                <option value="">Attributo</option>
+                <option value="LIGHT">Luce</option><option value="DARK">Oscurità</option>
+                <option value="FIRE">Fuoco</option><option value="WATER">Acqua</option>
+                <option value="EARTH">Terra</option><option value="WIND">Vento</option>
+                <option value="DIVINE">Divino</option>
+            </select>
+        </div>
+        <div class="col-4 col-md-2">
+            <select id="fRace" class="form-select" onchange="applyFilters()">
+                <option value="">Tipo Mostro</option>
+                <option value="Aqua">Acqua</option><option value="Beast">Bestia</option>
+                <option value="Beast-Warrior">Guerriero-Bestia</option><option value="Cyberse">Cyberso</option>
+                <option value="Dinosaur">Dinosauro</option><option value="Divine-Beast">Bestia Divina</option>
+                <option value="Dragon">Drago</option><option value="Fairy">Fata</option>
+                <option value="Fiend">Demone</option><option value="Fish">Pesce</option>
+                <option value="Insect">Insetto</option><option value="Machine">Macchina</option>
+                <option value="Plant">Pianta</option><option value="Psychic">Psichico</option>
+                <option value="Pyro">Pyro</option><option value="Reptile">Rettile</option>
+                <option value="Rock">Roccia</option><option value="Sea Serpent">Serpente Marino</option>
+                <option value="Spellcaster">Incantatore</option><option value="Thunder">Tuono</option>
+                <option value="Warrior">Guerriero</option><option value="Wyrm">Wyrm</option>
+                <option value="Zombie">Zombie</option><option value="Illusion">Illusione</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Tab Ricerca Globale API -->
+    <div id="search-tab" class="tab-content" style="display: none;">
+        <div class="alert alert-dark d-flex justify-content-between align-items-center border-secondary mb-4">
+            <div>
+                <h5 class="mb-1">Database Offline</h5>
+                <small class="text-secondary">Scarica tutte le carte localmente per ricerche istantanee in Italiano e Inglese.</small>
+            </div>
+            <button class="btn btn-warning fw-bold text-dark" id="btnSyncDb" onclick="syncGlobalDatabase()">
+                ⬇️ Sincronizza DB
+            </button>
+        </div>
+
+        <div class="input-group">
+            <input type="text" id="searchInput" class="form-control" placeholder="Cerca carta per nome..." onkeyup="searchCardsApi()">
+        </div>
+        
+        <div class="d-flex justify-content-between align-items-center mt-3 mb-3">
+            <p id="apiResultCount" class="text-info fw-bold mb-0"></p> 
+        </div>
+
+        <div id="loadingSpinner" class="text-center my-5" style="display: none;">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+            <h5 class="mt-3 text-secondary" id="loadingText">Operazione in corso...</h5>
+        </div>
+
+        <div class="row" id="searchResults"></div>
+    </div>
+
+    <!-- Tab Collezione -->
+    <div id="collection-tab" class="tab-content">
+        <div class="row" id="collectionResults"></div>
+    </div>
+
+    <!-- Tab Wishlist -->
+    <div id="wishlist-tab" class="tab-content" style="display: none;">
+        <div class="row" id="wishlistResults"></div>
+    </div>
+
+    <!-- Tab Deck Builder -->
+    <div id="deckbuilder-tab" class="tab-content" style="display: none;">
+        <div class="row mb-4">
+            <div class="col-12 d-flex flex-column flex-lg-row gap-3">
+                <div class="input-group" style="flex: 1; min-width: 250px;">
+                    <select id="dbDeckSelect" class="form-select fw-bold" onchange="DeckBuilder.loadDeck(this.value)">
+                        <option value="">Seleziona un mazzo...</option>
+                    </select>
+                    <button class="btn btn-primary fw-bold" onclick="DeckBuilder.createNewDeck()">+ Crea Nuovo</button>
+                </div>
+                
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    <button class="btn btn-secondary" id="dbSortBtn" style="display: none;" onclick="DeckBuilder.sortDeck()">🔄 Ordina</button>
+                    <button class="btn btn-info" id="dbTestDrawBtn" style="display: none;" onclick="DeckBuilder.openTestDraw()">🃏 Test Mano</button>
+                    <label class="btn btn-warning mb-0" style="cursor: pointer;">
+                        ⬆️ Importa .ydk
+                        <input type="file" accept=".ydk" style="display: none;" onchange="DeckBuilder.importYDK(event)">
+                    </label>
+                    <button class="btn btn-success" id="dbExportBtn" style="display: none;" onclick="DeckBuilder.exportYDK()">⬇️ Esporta .ydk</button>
+                    <button class="btn btn-danger" id="dbDeleteDeckBtn" style="display: none;" onclick="DeckBuilder.deleteDeck()">🗑️ Elimina Deck</button>
+                </div>
+
+                <!-- Menu Banlist -->
+                <!-- Menu Banlist Dinamico -->
+                <div class="input-group ms-lg-3" style="max-width: 265px;" id="dbBanlistGroup" style="display: none;">
+                    <span class="input-group-text bg-danger text-white border-danger">🚫 Banlist</span>
+                    <select id="dbBanlistSelect" class="form-select border-danger fw-bold" onchange="DeckBuilder.handleBanlistChange(this.value)">
+                        <option value="none">Senza Limiti</option>
+                        <option value="ban_tcg" selected>TCG Avanzato</option>
+                        <option value="ban_ocg">OCG Giappone</option>
+                        <option value="ban_edison">Edison (2010)</option>
+                        <option value="ban_goat">Goat (2005)</option>
+                        <!-- Gruppo popolato automaticamente dal server -->
+                        <optgroup label="📂 Custom (Cartella server)" id="customBanlistGroup"></optgroup>
+                        <option value="upload_new">➕ Carica banlist (.conf)</option>
+                    </select>
+                </div>
+                
+                
+                <!-- Pulsante Elimina (nascosto di default) -->
+                <button class="btn btn-outline-danger" id="dbDeleteBanlistBtn" style="display: none;" onclick="DeckBuilder.deleteActiveCustomBanlist()" title="Elimina questa banlist dal server">🗑️</button>
+                <!-- Input file nascosto per l'upload -->
+                <input type="file" id="dbConfLoader" accept=".conf" style="display: none;" onchange="DeckBuilder.uploadCustomBanlist(event)">
+            </div>
+        </div>
+
+        <div id="dbWorkspace" class="row" style="display: none;">
+            <!-- Sinistra: Ricerca Globale API -->
+            <div class="col-md-4 border-end border-secondary mb-4">
+                <h5 class="mb-3">Cerca Carte</h5>
+                <div class="input-group mb-3">
+                    <input type="text" id="dbSearchInput" class="form-control" placeholder="Cerca..." onkeyup="DeckBuilder.searchApi()">
+                </div>
+                
+                <div id="dbLoadingSpinner" class="text-center my-3" style="display: none;">
+                    <div class="spinner-border text-primary" role="status" style="width: 2rem; height: 2rem;"></div>
+                </div>
+                
+                <div id="dbAvailableCards" class="row g-2 overflow-auto" style="max-height: 70vh; padding-right: 5px;"></div>
+            </div>
+            
+            <!-- Destra: Le 3 Zone del Mazzo -->
+            <div class="col-md-8 overflow-auto" style="max-height: 85vh;">
+                <!-- MAIN DECK -->
+                <div class="bg-dark p-3 rounded mb-3 border border-secondary" id="dbMainDeckZone" ondragover="event.preventDefault()" ondrop="DeckBuilder.handleDrop(event, 'main')">
+                    <div class="d-flex justify-content-between align-items-center mb-2 border-bottom border-secondary pb-2">
+                        <h4 class="m-0 text-warning">Main Deck <span id="dbMainCount" class="badge bg-secondary ms-2">0 / 60</span></h4>
+                        <span id="dbMainStatus" class="text-light small fw-bold"></span>
+                    </div>
+                    <div id="dbMainDeckCards" class="row g-2 min-vh-25"></div>
+                </div>
+
+                <!-- EXTRA DECK -->
+                <div class="bg-dark p-3 rounded mb-3 border border-secondary" id="dbExtraDeckZone" ondragover="event.preventDefault()" ondrop="DeckBuilder.handleDrop(event, 'main')">
+                    <div class="d-flex justify-content-between align-items-center mb-2 border-bottom border-secondary pb-2">
+                        <h4 class="m-0 text-info">Extra Deck <span id="dbExtraCount" class="badge bg-secondary ms-2">0 / 15</span></h4>
+                        <span id="dbExtraStatus" class="text-light small fw-bold"></span>
+                    </div>
+                    <div id="dbExtraDeckCards" class="row g-2 min-vh-25"></div>
+                </div>
+
+                <!-- SIDE DECK -->
+                <div class="bg-dark p-3 rounded border border-secondary" id="dbSideDeckZone" ondragover="event.preventDefault()" ondrop="DeckBuilder.handleDrop(event, 'side')">
+                    <div class="d-flex justify-content-between align-items-center mb-2 border-bottom border-secondary pb-2">
+                        <h4 class="m-0 text-success">Side Deck <span id="dbSideCount" class="badge bg-secondary ms-2">0 / 15</span></h4>
+                        <span class="text-light small fw-bold">Trascina qui o Tasto Dx dalla collezione</span>
+                    </div>
+                    <div id="dbSideDeckCards" class="row g-2 min-vh-25"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal di Ispezione Carta -->
+    <div class="modal fade" id="dbInspectModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-truncate" id="dbModalTitle"></h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img id="dbModalImg" src="" class="img-fluid rounded mb-3" style="max-height: 250px; cursor: pointer; transition: transform 0.2s;" onclick="DeckBuilder.openLightbox(this.src)" title="Clicca per ingrandire" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                    <div class="d-flex justify-content-around mb-3">
+                        <span class="badge bg-success fs-6">Collezione: <span id="dbModalPhysQty"></span></span>
+                        <span class="badge bg-warning text-dark fs-6">Wishlist: <span id="dbModalWishQty"></span></span>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button id="dbModalCollBtn" class="btn btn-success fw-bold">+ Collezione</button>
+                        <button id="dbModalWishBtn" class="btn btn-warning text-dark fw-bold">+ Wishlist</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Test della Mano Iniziale -->
+    <div class="modal fade" id="dbTestDrawModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content bg-dark text-light border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">🃏 Test Mano Iniziale (<span id="dbDrawCount">0</span> carte nel deck)</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <!-- Spazio dove compaiono le carte pescate -->
+                    <div id="dbHandContainer" class="row g-2 justify-content-center min-vh-25 mb-4"></div>
+                    
+                    <div class="d-flex justify-content-center gap-3">
+                        <button class="btn btn-warning fw-bold text-dark" onclick="DeckBuilder.drawSingleCard()">+ Pesca 1 Carta</button>
+                        <button class="btn btn-secondary fw-bold" onclick="DeckBuilder.startTestDraw()">🔄 Rimischia (Nuova Mano)</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Lightbox Immagine Gigante -->
+    <div class="modal fade" id="dbLightboxModal" tabindex="-1" style="z-index: 1060;">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content bg-transparent border-0 shadow-none">
+                <div class="modal-header border-0 pb-0 justify-content-end">
+                    <button type="button" class="btn-close btn-close-white fs-4" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center pt-0">
+                    <img id="dbLightboxImg" src="" class="img-fluid rounded shadow-lg" style="max-height: 90vh;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Snack Pop-up (Toast) per notifiche -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1055;">
+        <div id="liveToast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body fw-bold" id="toastMessage"></div>
+                <button type="button" id="toastCloseBtn" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script src="/static/script.js"></script>
+</body>
+</html>
