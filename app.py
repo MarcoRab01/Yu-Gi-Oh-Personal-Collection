@@ -578,7 +578,8 @@ def open_browser():
 #    return jsonify({'success': True, 'message': 'Server arrestato'})
 
 if __name__ == '__main__':
-    # Apre il browser 1.5 secondi dopo l'avvio del server
-    Timer(1.0, open_browser).start()
+    # Controlla se siamo dentro Docker (Docker crea un file .dockerenv nella radice)
+    if not os.path.exists('/.dockerenv'):
+        Timer(1.0, open_browser).start()
     #app.run(host='127.0.0.1', port=5000, debug=False)
     app.run(host='0.0.0.0', port=5000) 
