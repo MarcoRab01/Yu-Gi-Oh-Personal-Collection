@@ -340,7 +340,6 @@ def get_deck(deck_id):
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
     
-    # FIX: Selezioniamo tutto da 'cards' (c.*) e le quantità dal deck (dc)
     c.execute('''
         SELECT c.*, dc.quantity as deck_qty, dc.side_qty
         FROM deck_cards dc
@@ -349,10 +348,6 @@ def get_deck(deck_id):
     ''', (deck_id,))
     
     cards = [dict(row) for row in c.fetchall()]
-    
-    # Creiamo il campo 'owned_qty' per JavaScript leggendo la quantità dalla tua collezione (cards.quantity)
-    for card in cards:
-        card['owned_qty'] = card.get('quantity', 0)
         
     conn.close()
     return jsonify(cards)

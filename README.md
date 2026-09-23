@@ -1,4 +1,4 @@
-# 🎴 Yu-Gi-Oh! Deck Manager & Tracker
+# 🎴 Yu-Gi-Oh! Personal Collection
 
 Un'applicazione web completa, leggera e self-hosted per gestire la tua collezione di carte di Yu-Gi-Oh!, costruire mazzi competitivi e testare le tue strategie. 
 
@@ -7,6 +7,7 @@ Sviluppata per funzionare 24/7 su pc o server locali (come Raspberry Pi) tramite
 ---
 
 ## 📑 Indice
+- [📸 Anteprima dell'Applicazione](#anteprima)
 - [✨ Caratteristiche Principali](#caratteristiche)
 - [🚀 Come Installare e Avviare l'App](#installazione)
   - [Metodo 1: File Eseguibili Standalone (Windows .exe / Linux) - Il più facile!](#metodo-1-file-eseguibili-standalone-windows-exe--linux---il-più-facile)
@@ -14,6 +15,37 @@ Sviluppata per funzionare 24/7 su pc o server locali (come Raspberry Pi) tramite
   - [Metodo 3: Installazione per Server 24/7 (Docker Compose) - Consigliato sui server!](#metodo-3-installazione-per-server-247-docker-compose---consigliato-sui-server)
 - [📂 Come usare le Banlist Personalizzate (.conf)](#banlist)
 - [📡 Dati e Riconoscimenti](#dati)
+
+---
+
+<a id="anteprima"></a>
+## 📸 Anteprima dell'Applicazione
+
+<p align="center">
+  <img src="img/la_mia_collezione.png" width="49%" alt="Interfaccia La Mia Collezione" />
+</p>
+<br>
+<p align="center">
+  <img src="img/lista_desideri.png" width="49%" alt="Interfaccia Lista Desideri" />
+</p>
+<br>
+<p align="center">
+  <img src="img/main_deck.png" width="49%" alt="Visuale del Main Deck Builder" />
+</p>
+<br>
+<p align="center">
+  <img src="img/side_deck.png" width="49%" alt="Gestione del Side Deck" />
+</p>
+<br>
+<p align="center">
+  <img src="img/aggiungi_carta_deck_builder.png" width="49%" alt="Ricerca e aggiunta carte al volo" />
+</p>
+<br>
+<p align="center">
+  <img src="img/ingrandimento_immagine.png" width="49%" alt="Dettaglio e ingrandimento delle carte" />
+</p>
+
+
 ---
 
 <a id="caratteristiche"></a>
@@ -34,12 +66,12 @@ Sviluppata per funzionare 24/7 su pc o server locali (come Raspberry Pi) tramite
 <a id="installazione"></a>
 ## 🚀 Come Installare e Avviare l'App
 
-Puoi far girare l'applicazione in tre modi diversi, a seconda delle tue esigenze.
+Puoi far girare l'applicazione in tre modi diversi, a seconda delle tue esigenze. Ricorda appena avvii l'applicazione di andare nella sezione **Cerca Nuove Carte** e clicca su **Sincronizza DB**, altrimenti le carte non saranno cercabili !!!
 
 ### Metodo 1: File Eseguibili Standalone (Windows .exe / Linux) - Il più facile!
 Se non vuoi installare né Python né Docker, puoi usare i file eseguibili precompilati, perfetti per l'uso personale su PC.
 
-1. Scarica il file eseguibile per il tuo sistema operativo (es. il file `.exe` per Windows o il file binario PE per Linux).
+1. Scarica il file eseguibile per il tuo sistema operativo **[QUI](https://github.com/MarcoRab01/Yu-Gi-Oh-Personal-Collection/releases/tag/yugioh-collection)** (es. il file `.exe` per Windows o il file binario PE per Linux).
 2. Mettilo in una cartella apposita cosi quando verrà avviato si genereranno i file per il database e la cartella delle banlist.
 3. Fai doppio clic sul file per avviarlo.
 4. Il browser predefinito si aprirà automaticamente sull'applicazione!
