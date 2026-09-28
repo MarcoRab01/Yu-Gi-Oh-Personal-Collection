@@ -176,7 +176,18 @@ def sync_database():
         name_it = it_names.get(cid, name_en) 
         
         image_url = item['card_images'][0]['image_url'] if 'card_images' in item else ''
-        ctype = item.get('type', '')
+        
+        # Correggiamo la logica del tipo per farla combaciare con i filtri HTML
+        raw_type = item.get('type', '')
+        if 'Monster' in raw_type:
+            ctype = 'Mostro'
+        elif 'Spell' in raw_type:
+            ctype = 'Magia'
+        elif 'Trap' in raw_type:
+            ctype = 'Trappola'
+        else:
+            ctype = 'Altro'
+            
         csubtype = item.get('frameType', '') 
         attr = item.get('attribute', '')
         race = item.get('race', '')

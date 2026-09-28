@@ -7,6 +7,12 @@ const DeckBuilder = {
     async init() {
         await this.loadDecksDropdown();
         await this.fetchUserCards();
+        
+        // NUOVO: Ricarica visivamente il mazzo se ne avevi già uno aperto
+        // Così le carte che hai appena "comprato" non saranno più grigie!
+        if (this.currentDeckId) {
+            await this.loadDeck(this.currentDeckId);
+        }
     },
 
     async fetchUserCards() {
@@ -937,21 +943,30 @@ async function updateCard(id, updateType, action) {
         body: JSON.stringify(cardData)
     });
     
-    if (action === 'add' && document.getElementById('search-tab').style.display !== 'none') {
+    // Mostra il toast corretto a cascata (METODO INFALLIBILE SENZA SIMBOLI STRANI)
+    if (document.getElementById('search-tab').style.display !== 'none') {
         const dest = updateType === 'owned' ? 'Collezione' : 'Wishlist';
-        document.getElementById('toastMessage').innerText = `"${cardData.name}" aggiunta in ${dest}!`;
+        const toastType = updateType === 'owned' ? 'success' : 'warning';
         
-        const toastEl = document.getElementById('liveToast');
-        const closeBtn = document.getElementById('toastCloseBtn');
-        
-        toastEl.className = 'toast align-items-center border-0 ' + (updateType === 'owned' ? 'text-bg-success' : 'text-bg-warning text-dark');
-        closeBtn.className = 'btn-close me-2 m-auto ' + (updateType === 'owned' ? 'btn-close-white' : '');
-        
-        const toast = new bootstrap.Toast(toastEl);
-        toast.show();
+        // Uniamo le variabili in modo classico a prova di errore
+        const messaggio = '"' + cardData.name + '" aggiunta in ' + dest + '!';
+        showToast(messaggio, toastType);
     }
     
-    loadMyCards();
+    // Aggiorna le quantità in memoria senza ricaricare tutta l'app
+    if (action === 'add') {
+        if (updateType === 'owned') cardData.owned_qty = (cardData.owned_qty || 0) + 1;
+        if (updateType === 'wishlist') cardData.wishlist_qty = (cardData.wishlist_qty || 0) + 1;
+    } else {
+        if (updateType === 'owned') cardData.owned_qty = Math.max(0, (cardData.owned_qty || 0) - 1);
+        if (updateType === 'wishlist') cardData.wishlist_qty = Math.max(0, (cardData.wishlist_qty || 0) - 1);
+    }
+    
+    // Ricarica la vista solo se siamo nella scheda collezione o wishlist
+    if (document.getElementById('collection-tab').style.display !== 'none' || 
+        document.getElementById('wishlist-tab').style.display !== 'none') {
+        loadMyCards(); 
+    }
 }
 
 function getCardWeight(type, subtype) {
@@ -1064,8 +1079,15 @@ function applyFilters() {
 const originalShowTab = showTab;
 showTab = function(tabName) {
     originalShowTab(tabName);
+    
     if (tabName === 'deckbuilder') {
         DeckBuilder.init();
+    }
+    
+    // NUOVO: Ricarica le carte aggiornate dal DB ogni volta 
+    // che clicchi su Collezione o Wishlist
+    if (tabName === 'collection' || tabName === 'wishlist') {
+        loadMyCards();
     }
 };
 
