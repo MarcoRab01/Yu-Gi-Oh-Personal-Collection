@@ -177,21 +177,36 @@ def sync_database():
         
         image_url = item['card_images'][0]['image_url'] if 'card_images' in item else ''
         
-        # Correggiamo la logica del tipo per farla combaciare con i filtri HTML
+        # --- LOGICA TRADUZIONE E SOTTOTIPI XYZ CORRETTA ---
         raw_type = item.get('type', '')
         if 'Monster' in raw_type:
             ctype = 'Mostro'
+            sub = raw_type.replace(' Monster', '')
+            
+            # Se nel testo del tipo c'è XYZ (in qualsiasi combinazione), lo forziamo a 'Xyz'
+            if 'XYZ' in sub.upper():
+                csubtype = 'Xyz'
+            else:
+                csubtype = sub
+                
         elif 'Spell' in raw_type:
             ctype = 'Magia'
+            csubtype = item.get('race', '') # Prende "Equip", "Continuous", ecc.
         elif 'Trap' in raw_type:
             ctype = 'Trappola'
+            csubtype = item.get('race', '') # Prende "Counter", "Normal", ecc.
         else:
             ctype = 'Altro'
+            csubtype = ''
             
-        csubtype = item.get('frameType', '') 
         attr = item.get('attribute', '')
-        race = item.get('race', '')
-        level = str(item.get('level', ''))
+        race = item.get('race', '') if ctype == 'Mostro' else ''
+        
+        level_val = item.get('level')
+        if level_val is None:
+            level_val = item.get('linkval', '')
+        level = str(level_val)
+        # -----------------------------------------------
         
         ban_info = item.get('banlist_info') or {}
         banlist_data = json.dumps(ban_info)
@@ -206,13 +221,13 @@ def sync_database():
                      (id, name, name_it, image_url, card_type, card_subtype, attribute, race, level, banlist_info, tcg_date) 
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', cards_to_insert)
                      
-    # Assicurati di aggiungere la colonna tcg_date alla tabella 'cards' nel tuo init_db() se non l'hai fatto,
-    # ed esegui la query di UPDATE come fatto in precedenza, includendo tcg_date.
+    # Assicurati di aggiungere la colonna tcg_date alla tabella 'cards' se non l'hai fatto
     try:
         c.execute('ALTER TABLE cards ADD COLUMN tcg_date TEXT')
     except sqlite3.OperationalError:
         pass
 
+    # === QUESTA QUERY AGGIORNA IN AUTOMATICO TUTTA LA TUA COLLEZIONE GIA' SALVATA ===
     c.execute('''
         UPDATE cards 
         SET 
