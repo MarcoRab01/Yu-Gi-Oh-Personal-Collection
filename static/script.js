@@ -1115,6 +1115,6 @@ async function syncGlobalDatabase() {
 }
 
 // Invia un segnale di spegnimento "silenzioso" quando la scheda viene chiusa
-window.addEventListener('beforeunload', function (e) {
-    navigator.sendBeacon('/api/shutdown');
-});
+//window.addEventListener('beforeunload', function (e) {
+//    navigator.sendBeacon('/api/shutdown');
+//});

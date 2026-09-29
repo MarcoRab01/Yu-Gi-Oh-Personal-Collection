@@ -7,7 +7,7 @@ from werkzeug.utils import secure_filename
 import webbrowser
 from threading import Timer
 import sys
-import signal
+#import signal
 
 # 1. Determina dove si trova l'eseguibile (o il file app.py)
 if getattr(sys, 'frozen', False):
@@ -590,18 +590,18 @@ def open_browser():
     """Apre automaticamente il browser predefinito all'indirizzo dell'app"""
     webbrowser.open_new('http://127.0.0.1:5000/')
 
-@app.route('/api/shutdown', methods=['POST'])
-def shutdown_server():
-    """Arresta il server Flask in modo pulito e nativo."""
-    def kill_server():
-        # Invia il segnale di chiusura (equivalente a premere CTRL+C nel terminale)
-        os.kill(os.getpid(), signal.SIGINT)
-        
-    # Aspetta mezzo secondo prima di "uccidere" il server, 
-    # così il browser fa in tempo a ricevere il messaggio di successo.
-    Timer(0.5, kill_server).start()
-    
-    return jsonify({'success': True, 'message': 'Server arrestato'})
+#@app.route('/api/shutdown', methods=['POST'])
+#def shutdown_server():
+#    """Arresta il server Flask in modo pulito e nativo."""
+#    def kill_server():
+#        # Invia il segnale di chiusura (equivalente a premere CTRL+C nel terminale)
+#        os.kill(os.getpid(), signal.SIGINT)
+#        
+#    # Aspetta mezzo secondo prima di "uccidere" il server, 
+#    # così il browser fa in tempo a ricevere il messaggio di successo.
+#    Timer(0.5, kill_server).start()
+#    
+#    return jsonify({'success': True, 'message': 'Server arrestato'})
 
 if __name__ == '__main__':
     # Controlla se siamo dentro Docker (Docker crea un file .dockerenv nella radice)
