@@ -790,34 +790,35 @@ function showToast(message, type = 'success') {
     });
 }
 
-
 let cardDataStorage = {};
-let searchResultsAll = []; 
 let currentPage = 1;
 const itemsPerPage = 20;
+let allMyCards = [];
+let currentFilteredCards = [];
 
 const levelSelect = document.getElementById('fLevel');
 for(let i=1; i<=13; i++) levelSelect.innerHTML += `<option value="${i}">${i}</option>`;
 
 function showTab(tabName) {
-        document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
-        document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
-        
-        document.getElementById(tabName + '-tab').style.display = 'block';
-        if(event && event.target) event.target.classList.add('active');
-        
-        const filterPanel = document.getElementById('filter-panel');
-        if (tabName === 'deckbuilder' || tabName === 'search') {
-            filterPanel.style.display = 'none';
-        } else {
-            filterPanel.style.display = 'flex';
-            applyFilters(); // Aggiorna i contatori non appena si apre la Collezione o la Wishlist!
-        }
-
-        if (tabName === 'deckbuilder' && typeof DeckBuilder !== 'undefined') {
-            DeckBuilder.init();
-        }
+    document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+    
+    document.getElementById(tabName + '-tab').style.display = 'block';
+    if(event && event.target) event.target.classList.add('active');
+    
+    const filterPanel = document.getElementById('filter-panel');
+    if (tabName === 'deckbuilder' || tabName === 'search') {
+        filterPanel.style.display = 'none';
+    } else {
+        filterPanel.style.display = 'flex';
+        currentPage = 1;
+        loadMyCards(); // Ricarica i dati aggiornati dal server ogni volta che apri il tab!
     }
+
+    if (tabName === 'deckbuilder' && typeof DeckBuilder !== 'undefined') {
+        DeckBuilder.init();
+    }
+}
 
 function updateSubFilters() {
     const type = document.getElementById('fType').value;
@@ -890,34 +891,21 @@ async function searchCardsApi() {
     }
 }
 
-
 async function loadMyCards() {
     const res = await fetch('/api/cards');
-    const cards = await res.json();
+    allMyCards = await res.json(); // Invece di metterle tutte nel DOM, le salviamo nell'array
     
-    const collContainer = document.getElementById('collectionResults');
-    const wishContainer = document.getElementById('wishlistResults');
-    collContainer.innerHTML = ''; wishContainer.innerHTML = '';
-
-    cards.forEach(card => {
+    allMyCards.forEach(card => {
         cardDataStorage[card.id] = card;
-        if (card.owned_qty > 0) collContainer.innerHTML += renderCardHTML(card, 'owned', card.owned_qty);
-        if (card.wishlist_qty > 0) wishContainer.innerHTML += renderCardHTML(card, 'wishlist', card.wishlist_qty);
     });
 
-    sortCards();
+    currentPage = 1;
     applyFilters(); 
 }
 
 function renderCardHTML(card, updateType, qty) {
     return `
-        <div class="col-6 col-md-3 card-box" 
-                data-type="${card.card_type || ''}" 
-                data-subtype="${card.card_subtype || ''}" 
-                data-attr="${card.attribute || ''}" 
-                data-race="${card.race || ''}" 
-                data-level="${card.level || ''}"
-                data-qty="${qty}">
+        <div class="col-6 col-md-3 card-box">
             
             <!-- Immagine ora cliccabile con effetto zoom -->
             <img src="${card.image_url}" class="card-img img-fluid" style="cursor: pointer; transition: transform 0.2s;" onclick="DeckBuilder.openLightbox(this.src)" title="Clicca per ingrandire" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
@@ -930,43 +918,6 @@ function renderCardHTML(card, updateType, qty) {
             </div>
         </div>
     `;
-}
-
-async function updateCard(id, updateType, action) {
-    const cardData = cardDataStorage[id];
-    cardData.update_type = updateType;
-    cardData.action = action;
-
-    await fetch('/api/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(cardData)
-    });
-    
-    // Mostra il toast corretto a cascata (METODO INFALLIBILE SENZA SIMBOLI STRANI)
-    if (document.getElementById('search-tab').style.display !== 'none') {
-        const dest = updateType === 'owned' ? 'Collezione' : 'Wishlist';
-        const toastType = updateType === 'owned' ? 'success' : 'warning';
-        
-        // Uniamo le variabili in modo classico a prova di errore
-        const messaggio = '"' + cardData.name + '" aggiunta in ' + dest + '!';
-        showToast(messaggio, toastType);
-    }
-    
-    // Aggiorna le quantità in memoria senza ricaricare tutta l'app
-    if (action === 'add') {
-        if (updateType === 'owned') cardData.owned_qty = (cardData.owned_qty || 0) + 1;
-        if (updateType === 'wishlist') cardData.wishlist_qty = (cardData.wishlist_qty || 0) + 1;
-    } else {
-        if (updateType === 'owned') cardData.owned_qty = Math.max(0, (cardData.owned_qty || 0) - 1);
-        if (updateType === 'wishlist') cardData.wishlist_qty = Math.max(0, (cardData.wishlist_qty || 0) - 1);
-    }
-    
-    // Ricarica la vista solo se siamo nella scheda collezione o wishlist
-    if (document.getElementById('collection-tab').style.display !== 'none' || 
-        document.getElementById('wishlist-tab').style.display !== 'none') {
-        loadMyCards(); 
-    }
 }
 
 function getCardWeight(type, subtype) {
@@ -998,40 +949,44 @@ function getCardWeight(type, subtype) {
 }
 
 function sortCards() {
-    const activeContainerId = document.getElementById('collection-tab').style.display !== 'none' ? 'collectionResults' : 'wishlistResults';
-    const container = document.getElementById(activeContainerId);
-    if (!container) return;
+    currentPage = 1;
+    applyFilters();
+}
 
-    const cards = Array.from(container.getElementsByClassName('card-box'));
-    const sortMode = document.getElementById('fSort').value;
+function changePage(direction) {
+    currentPage += direction;
+    const activeTab = document.getElementById('collection-tab').style.display !== 'none' ? 'owned' : 'wishlist';
+    renderCurrentPage(activeTab);
+    // Scorre la pagina dolcemente verso l'alto quando cambi pagina
+    document.getElementById('filter-panel').scrollIntoView({ behavior: 'smooth' });
+}
 
-    cards.sort((a, b) => {
-        const nameA = a.querySelector('p').innerText;
-        const nameB = b.querySelector('p').innerText;
+async function updateCard(id, updateType, action) {
+    const cardData = cardDataStorage[id] || { id: id };
+    cardData.update_type = updateType;
+    cardData.action = action;
 
-        if (sortMode === 'alpha') {
-            return nameA.localeCompare(nameB);
-        } else if (sortMode === 'type') {
-            const weightA = getCardWeight(a.dataset.type, a.dataset.subtype);
-            const weightB = getCardWeight(b.dataset.type, b.dataset.subtype);
-            
-            if (weightA === weightB) {
-                return nameA.localeCompare(nameB);
-            }
-            return weightA - weightB;
-        }
+    await fetch('/api/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cardData)
     });
-
-    cards.forEach(card => container.appendChild(card));
+    
+    if (document.getElementById('search-tab').style.display !== 'none') {
+        const dest = updateType === 'owned' ? 'Collezione' : 'Wishlist';
+        const toastType = updateType === 'owned' ? 'success' : 'warning';
+        showToast(`"${cardData.name || 'Carta'}" aggiunta in ${dest}!`, toastType);
+    }
+    
+    // Ricarica istantaneamente i dati aggiornati dal database
+    await loadMyCards();
 }
 
 function applyFilters() {
-    const activeContainerId = document.getElementById('collection-tab').style.display !== 'none' ? 'collectionResults' : 'wishlistResults';
-    const container = document.getElementById(activeContainerId);
-    if (!container) return; 
+    const activeTab = document.getElementById('collection-tab').style.display !== 'none' ? 'owned' : 'wishlist';
     
-    const cards = container.getElementsByClassName('card-box');
-    
+    if (event && event.type === 'keyup') currentPage = 1; 
+
     const qText = document.getElementById('searchInputLocal').value.toLowerCase();
     const qType = document.getElementById('fType').value;
     const qSubType = document.getElementById('fSubType').value;
@@ -1042,54 +997,91 @@ function applyFilters() {
     let visibleCopies = 0;
     let totalCopies = 0;
 
-    for (let card of cards) {
-        const cName = card.querySelector('p').innerText.toLowerCase();
-        const dType = card.dataset.type;
-        const dSubType = card.dataset.subtype;
-        const dAttr = card.dataset.attr;
-        const dRace = card.dataset.race;
-        const dLevel = card.dataset.level;
-        
-        // Recupero la quantità esatta di questa carta 
-        const qty = parseInt(card.dataset.qty) || 0;
+    // Filtra direttamente l'array in memoria (velocissimo, ignora il DOM)
+    currentFilteredCards = allMyCards.filter(card => {
+        const qty = activeTab === 'owned' ? (card.owned_qty || 0) : (card.wishlist_qty || 0);
+        if (qty === 0) return false;
+
+        totalCopies += qty;
+
+        const cName = (card.name || '').toLowerCase();
+        const dType = card.card_type || '';
+        const dSubType = card.card_subtype || '';
+        const dAttr = card.attribute || '';
+        const dRace = card.race || '';
+        const dLevel = String(card.level || '');
 
         let match = true;
         if (qText && !cName.includes(qText)) match = false;
-        if (qType && dType !== qType) match = false;
+        
+        if (qType) {
+            const isMonster = dType === 'Mostro' || dType.includes('Monster');
+            const isSpell = dType === 'Magia' || dType.includes('Spell');
+            const isTrap = dType === 'Trappola' || dType.includes('Trap');
+            
+            if (qType === 'Mostro' && !isMonster) match = false;
+            if (qType === 'Magia' && !isSpell) match = false;
+            if (qType === 'Trappola' && !isTrap) match = false;
+        }
+
         if (qSubType && !dSubType.includes(qSubType)) match = false;
         if (qLevel && dLevel !== qLevel) match = false;
         if (qAttr && dAttr !== qAttr) match = false;
         if (qRace && dRace !== qRace) match = false;
 
-        totalCopies += qty; // Somma le copie totali contenute nella tab
+        if (match) visibleCopies += qty;
+        
+        return match;
+    });
 
-        if (match) {
-            card.style.display = '';
-            visibleCopies += qty; // Somma le copie che superano i filtri
-        } else {
-            card.style.display = 'none';
+    const sortMode = document.getElementById('fSort').value;
+    currentFilteredCards.sort((a, b) => {
+        const nameA = a.name || '';
+        const nameB = b.name || '';
+        if (sortMode === 'alpha') return nameA.localeCompare(nameB);
+        
+        if (sortMode === 'type') {
+            const weightA = getCardWeight(a.card_type, a.card_subtype);
+            const weightB = getCardWeight(b.card_type, b.card_subtype);
+            if (weightA === weightB) return nameA.localeCompare(nameB);
+            return weightA - weightB;
         }
-    }
-    
-    // Cambia la dicitura dinamicamente in base a quale pannello stai guardando
-    const labelTesto = activeContainerId === 'collectionResults' ? 'Copie Fisiche' : 'Copie da Comprare';
+    });
+
+    renderCurrentPage(activeTab);
+
+    const labelTesto = activeTab === 'owned' ? 'Copie Fisiche' : 'Copie da Comprare';
     document.getElementById('counterDisplay').innerText = `${visibleCopies} / ${totalCopies} ${labelTesto}`;
 }
 
-const originalShowTab = showTab;
-showTab = function(tabName) {
-    originalShowTab(tabName);
-    
-    if (tabName === 'deckbuilder') {
-        DeckBuilder.init();
+function renderCurrentPage(activeTab) {
+    const isOwned = activeTab === 'owned';
+    const container = document.getElementById(isOwned ? 'collectionResults' : 'wishlistResults');
+    const pagination = document.getElementById(isOwned ? 'collectionPagination' : 'wishlistPagination');
+    if (!container || !pagination) return;
+
+    const totalPages = Math.max(1, Math.ceil(currentFilteredCards.length / itemsPerPage));
+    currentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+    const start = (currentPage - 1) * itemsPerPage;
+    container.innerHTML = currentFilteredCards
+        .slice(start, start + itemsPerPage)
+        .map(card => renderCardHTML(card, activeTab, isOwned ? card.owned_qty : card.wishlist_qty))
+        .join('');
+
+    if (currentFilteredCards.length === 0) {
+        pagination.innerHTML = '';
+        return;
     }
-    
-    // NUOVO: Ricarica le carte aggiornate dal DB ogni volta 
-    // che clicchi su Collezione o Wishlist
-    if (tabName === 'collection' || tabName === 'wishlist') {
-        loadMyCards();
-    }
-};
+
+    pagination.innerHTML = `
+        <button class="btn btn-outline-light" ${currentPage <= 1 ? 'disabled' : ''}
+                onclick="changePage(-1)" aria-label="Pagina precedente">❮</button>
+        <span class="fw-bold">Pagina ${currentPage} di ${totalPages}</span>
+        <button class="btn btn-outline-light" ${currentPage >= totalPages ? 'disabled' : ''}
+                onclick="changePage(1)" aria-label="Pagina successiva">❯</button>
+    `;
+}
 
 loadMyCards();
 
@@ -1123,6 +1115,6 @@ async function syncGlobalDatabase() {
 }
 
 // Invia un segnale di spegnimento "silenzioso" quando la scheda viene chiusa
-//window.addEventListener('beforeunload', function (e) {
-//    navigator.sendBeacon('/api/shutdown');
-//});
+window.addEventListener('beforeunload', function (e) {
+    navigator.sendBeacon('/api/shutdown');
+});
