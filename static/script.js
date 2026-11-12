@@ -807,7 +807,9 @@ function showTab(tabName) {
     if(event && event.target) event.target.classList.add('active');
     
     const filterPanel = document.getElementById('filter-panel');
-    if (tabName === 'deckbuilder' || tabName === 'search') {
+    
+    // MODIFICA QUI: Aggiunto 'analyzer' alla lista dei tab senza pannello filtri
+    if (tabName === 'deckbuilder' || tabName === 'search' || tabName === 'analyzer') {
         filterPanel.style.display = 'none';
     } else {
         filterPanel.style.display = 'flex';
@@ -817,6 +819,11 @@ function showTab(tabName) {
 
     if (tabName === 'deckbuilder' && typeof DeckBuilder !== 'undefined') {
         DeckBuilder.init();
+    }
+    
+    // NUOVO BLOCCCHETTO: Aggiorna la tendina dell'analyzer quando lo apri
+    if (tabName === 'analyzer' && typeof DeckAnalyzer !== 'undefined') {
+        DeckAnalyzer.populateDropdown();
     }
 }
 
@@ -983,6 +990,7 @@ async function updateCard(id, updateType, action) {
 }
 
 function applyFilters() {
+    currentPage = 1;
     const activeTab = document.getElementById('collection-tab').style.display !== 'none' ? 'owned' : 'wishlist';
     
     if (event && event.type === 'keyup') currentPage = 1; 
@@ -1118,3 +1126,306 @@ async function syncGlobalDatabase() {
 //window.addEventListener('beforeunload', function (e) {
 //    navigator.sendBeacon('/api/shutdown');
 //});
+
+
+const DeckAnalyzer = {
+    currentDeck: [],
+    categories: {}, 
+    chartInstance: null, // Salva il grafico per poterlo aggiornare
+
+    // 1. Popola tendina (Invariato)
+    populateDropdown: async function() {
+        const select = document.getElementById('analyzerDeckSelect');
+        if (!select) return;
+        try {
+            const res = await fetch('/api/decks');
+            const decks = await res.json();
+            select.innerHTML = '<option value="">Seleziona un mazzo da analizzare...</option>';
+            decks.forEach(deck => {
+                select.innerHTML += `<option value="${deck.id}">${deck.name}</option>`;
+            });
+        } catch (err) { console.error("Errore lista mazzi:", err); }
+    },
+
+    // 2. Load Deck con FILTRO DEFINITIVO Extra/Side
+    loadDeck: async function(deckId) {
+        if (!deckId) {
+            document.getElementById('analyzerCardList').innerHTML = '';
+            this.updateUIAndMath();
+            return;
+        }
+        
+        try {
+            let rawCards = [];
+            
+            // L'INTUIZIONE GENIALE: Usiamo i dati del Deck Builder se sono già lì!
+            if (typeof DeckBuilder !== 'undefined' && 
+                DeckBuilder.currentDeckId == deckId && 
+                DeckBuilder.currentDeckCards) {
+                
+                rawCards = DeckBuilder.currentDeckCards;
+                console.log("Dati presi dal Deck Builder!");
+            } else {
+                // Se apriamo l'analyzer senza passare dal deck builder, li scarichiamo
+                const res = await fetch(`/api/decks/${deckId}`);
+                rawCards = await res.json();
+            }
+
+            // Filtro Extra/Side deck (uguale a prima)
+            const cardArray = rawCards.main ? rawCards.main : (Array.isArray(rawCards) ? rawCards : []);
+            
+            this.currentDeck = cardArray.filter(card => {
+                const section = (card.section || card.board || card.deck_section || '').toLowerCase();
+                if (section === 'side' || section === 'extra') return false;
+
+                const type = (card.type || card.card_type || '').toLowerCase();
+                const frame = (card.frameType || '').toLowerCase();
+                
+                const isExtra = type.includes('fusion') || type.includes('synchro') || 
+                                type.includes('xyz') || type.includes('link') ||
+                                frame.includes('fusion') || frame.includes('synchro') || 
+                                frame.includes('xyz') || frame.includes('link') ||
+                                type.includes('token');
+                
+                return !isExtra;
+            });
+
+            this.categories = {}; 
+            this.renderCards();
+            
+        } catch (err) {
+            console.error("Errore caricamento deck analyzer:", err);
+        }
+    },
+
+    setCategory: function(cardName, category) {
+        // Ora salviamo la categoria usando il NOME della carta, così vale per tutte le copie
+        this.categories[cardName] = category;
+        this.renderCards(); 
+    },
+
+    resetCategories: function() {
+        this.categories = {};
+        this.renderCards();
+    },
+
+    renderCards: function() {
+        const container = document.getElementById('analyzerCardList');
+        const uniqueCards = {};
+        
+        // Debug per vedere il nome esatto della colonna se serve
+        if (this.currentDeck.length > 0) {
+            console.log("🔍 Struttura di una carta del tuo deck:", this.currentDeck[0]);
+        }
+
+        this.currentDeck.forEach(c => {
+            const name = c.name; 
+            if (!uniqueCards[name]) {
+                uniqueCards[name] = { ...c, totalQty: 0 };
+            }
+            // Usa il nuovo cercatore aggressivo!
+            uniqueCards[name].totalQty += this.getCardQuantity(c);
+        });
+
+        let html = '';
+        Object.values(uniqueCards).forEach(card => {
+            const cat = this.categories[card.name] || 'brick'; 
+            const btnCombo = cat === 'combo' ? 'btn-success' : 'btn-outline-success text-white';
+            const btnHt = cat === 'ht' ? 'btn-warning text-dark' : 'btn-outline-warning text-white';
+            const btnBrick = cat === 'brick' ? 'btn-danger' : 'btn-outline-danger text-white';
+            
+            const imageId = card.card_id || card.konami_id || card.id;
+
+            html += `
+                <div class="col-12 mb-2">
+                    <div class="bg-dark border border-secondary rounded p-2 d-flex align-items-center gap-3">
+                        <img src="https://images.ygoprodeck.com/images/cards/${imageId}.jpg" 
+                             style="width: 50px; cursor: pointer;" 
+                             onclick="typeof DeckBuilder !== 'undefined' ? DeckBuilder.openLightbox(this.src) : window.open(this.src)">
+                        
+                        <div class="flex-grow-1 overflow-hidden">
+                            <div class="text-truncate fw-bold mb-1" title="${card.name}">
+                                <span class="badge bg-secondary me-1">x${card.totalQty}</span>${card.name}
+                            </div>
+                            <div class="btn-group btn-group-sm w-100">
+                                <button class="btn ${btnCombo}" onclick="DeckAnalyzer.setCategory('${card.name.replace(/'/g, "\\'")}', 'combo')">🚀 Combo</button>
+                                <button class="btn ${btnHt}" onclick="DeckAnalyzer.setCategory('${card.name.replace(/'/g, "\\'")}', 'ht')">✋ HT</button>
+                                <button class="btn ${btnBrick}" onclick="DeckAnalyzer.setCategory('${card.name.replace(/'/g, "\\'")}', 'brick')">🧱 Brick</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        container.innerHTML = html;
+        this.updateUIAndMath();
+    },
+
+    // Nuova funzione Helper che trova automaticamente la colonna delle quantità del tuo Database!
+    getCardQuantity: function(c) {
+        // Cerca in modo intelligente tra tutte le chiavi della carta
+        for (let key in c) {
+            let k = key.toLowerCase();
+            if (k.includes('qty') || k.includes('quantit') || k.includes('qta') || 
+                k.includes('copi') || k.includes('count') || k.includes('amount')) {
+                
+                let val = parseInt(c[key]);
+                if (!isNaN(val) && val > 0 && val <= 60) return val;
+            }
+        }
+        return 1; // Se proprio non la trova, conta 1
+    },
+
+    combinations: function(n, k) {
+        if (k < 0 || k > n) return 0;
+        if (k === 0 || k === n) return 1;
+        let c = 1;
+        for (let i = 1; i <= k; i++) c = c * (n - i + 1) / i;
+        return c;
+    },
+
+    hypergeometric: function(successesInDeck, totalInDeck, handSize, targetSuccesses) {
+        const waysToDrawSuccesses = this.combinations(successesInDeck, targetSuccesses);
+        const waysToDrawRest = this.combinations(totalInDeck - successesInDeck, handSize - targetSuccesses);
+        const totalWays = this.combinations(totalInDeck, handSize);
+        return (waysToDrawSuccesses * waysToDrawRest) / totalWays;
+    },
+
+    updateUIAndMath: function() {
+        let totalCardsInMain = 0;
+        let comboCount = 0;
+        let htCount = 0;
+        let brickCount = 0;
+
+        const uniqueCards = {};
+        this.currentDeck.forEach(c => {
+            const name = c.name;
+            if (!uniqueCards[name]) uniqueCards[name] = { totalQty: 0 };
+            
+            // Usa il nuovo cercatore aggressivo anche per i conti matematici!
+            uniqueCards[name].totalQty += this.getCardQuantity(c);
+        });
+
+        Object.keys(uniqueCards).forEach(name => {
+            const qty = uniqueCards[name].totalQty;
+            const cat = this.categories[name] || 'brick';
+            totalCardsInMain += qty;
+            
+            if (cat === 'combo') comboCount += qty;
+            else if (cat === 'ht') htCount += qty;
+            else brickCount += qty;
+        });
+
+        // Aggiorna Contatori
+        const elTotal = document.getElementById('statTotalCards');
+        if(elTotal) elTotal.innerText = totalCardsInMain;
+        
+        document.getElementById('statComboCount').innerText = comboCount;
+        document.getElementById('statHtCount').innerText = htCount;
+        document.getElementById('statBrickCount').innerText = brickCount;
+
+        // --- GESTIONE GRAFICO A TORTA ---
+        const ctx = document.getElementById('analyzerChart');
+        if (ctx) {
+            if (this.chartInstance) this.chartInstance.destroy();
+            this.chartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Combo', 'Hand Traps', 'Bricks/Engine'],
+                    datasets: [{
+                        data: [comboCount, htCount, brickCount],
+                        backgroundColor: ['#198754', '#ffc107', '#dc3545'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false } 
+                    }
+                }
+            });
+        }
+
+        // --- GESTIONE MANI IMPOSSIBILI ---
+        if (totalCardsInMain < 5) {
+            document.getElementById('barPlayable').style.width = '0%';
+            document.getElementById('barPlayable').innerText = '-';
+            
+            document.getElementById('barRedundant').style.width = '0%';
+            document.getElementById('barRedundant').innerText = '-';
+            
+            document.getElementById('barBrick').style.width = '0%';
+            document.getElementById('barBrick').innerText = '-';
+            
+            const verdictTitle = document.getElementById('analyzerVerdict');
+            const verdictDesc = document.getElementById('analyzerVerdictDesc');
+            if(verdictTitle) {
+                verdictTitle.innerText = "❌ Carte Insufficienti";
+                verdictDesc.innerText = "Servono almeno 5 carte nel Main Deck per calcolare la mano iniziale.";
+                verdictTitle.className = "text-secondary fw-bold m-0";
+            }
+            return;
+        }
+
+        // --- MATEMATICA IPERGEOMETRICA BASATA SULLE CARTE REALI (totalCardsInMain) ---
+        const handSize = 5;
+        const prob0Combo = this.hypergeometric(comboCount, totalCardsInMain, handSize, 0);
+        const prob1Combo = this.hypergeometric(comboCount, totalCardsInMain, handSize, 1);
+        
+        const probPlayable = 1 - prob0Combo;
+        const probRedundant = probPlayable - prob1Combo;
+
+        const percPlayable = (probPlayable * 100).toFixed(1);
+        const percRedundant = (probRedundant * 100).toFixed(1);
+        const percBrick = (prob0Combo * 100).toFixed(1);
+
+        // Aggiorna Barre di progresso
+        document.getElementById('barPlayable').style.width = percPlayable + '%';
+        document.getElementById('barPlayable').innerText = percPlayable + '%';
+
+        document.getElementById('barRedundant').style.width = percRedundant + '%';
+        document.getElementById('barRedundant').innerText = percRedundant + '%';
+
+        document.getElementById('barBrick').style.width = percBrick + '%';
+        document.getElementById('barBrick').innerText = percBrick + '%';
+
+        // --- VERDETTO (Nuova Logica Professionale) ---
+        const verdictTitle = document.getElementById('analyzerVerdict');
+        const verdictDesc = document.getElementById('analyzerVerdictDesc');
+
+        const diffComboHt = Math.abs(comboCount - htCount);
+
+        if (probPlayable < 0.70) {
+            verdictTitle.innerText = "🧱 Rischio Brick Elevato";
+            verdictDesc.innerText = `Solo ${percPlayable}% di partenza giocabile. Aggiungi starter o abbassa i brick.`;
+            verdictTitle.className = "text-danger fw-bold m-0";
+            
+        } else if (comboCount >= (htCount + brickCount)) {
+            // LA TUA REGOLA: Combo >= (HT + Bricks) -> Almeno il 50% del deck
+            verdictTitle.innerText = "🥇 Da Primo (Combo/Aggro)";
+            verdictDesc.innerText = "Oltre il 50% del mazzo è Combo. Consistenza devastante per dominare il turno 1!";
+            verdictTitle.className = "text-success fw-bold m-0";
+            
+        } else if (diffComboHt <= 2 && brickCount <= 15) { 
+            // BILANCIATO: Differenza minima tra Combo e HT (max 2), senza troppi brick
+            verdictTitle.innerText = "⚖️ Bilanciato (Midrange)";
+            verdictDesc.innerText = "Equilibrio perfetto tra partenze stabili e interruzioni nel turno avversario.";
+            verdictTitle.className = "text-info fw-bold m-0";
+            
+        } else if (htCount > comboCount) {
+            // GOING 2ND: Più Hand Traps che Combo
+            verdictTitle.innerText = "🥈 Da Secondo (Going 2nd)";
+            verdictDesc.innerText = "Eccellente capacità di interrompere l'avversario e spezzare le board.";
+            verdictTitle.className = "text-warning text-dark fw-bold m-0";
+            
+        } else {
+            // CASO IBRIDO: Più Combo che HT, ma non raggiunge il 50% assoluto del mazzo
+            verdictTitle.innerText = "🤔 Orientato al Primo (Ibrido)";
+            verdictDesc.innerText = "Buona base per scombare, ma ratio migliorabili per massimizzare il topdeck.";
+            verdictTitle.className = "text-light fw-bold m-0";
+        }
+    }
+};

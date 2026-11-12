@@ -33,6 +33,8 @@
             font-size: 16px;
         }
     </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 <div class="container mt-4">
@@ -43,6 +45,7 @@
         <li class="nav-item"><a class="nav-link active" onclick="showTab('collection')" href="#">La Mia Collezione</a></li>
         <li class="nav-item"><a class="nav-link" onclick="showTab('wishlist')" href="#">Lista Desideri</a></li>
         <li class="nav-item"><a class="nav-link" onclick="showTab('deckbuilder')" href="#">Deck Builder</a></li>
+        <li class="nav-item"><a class="nav-link" onclick="showTab('analyzer')" href="#">Deck Analyzer</a></li>
         <li class="nav-item"><a class="nav-link" onclick="showTab('search')" href="#">Cerca Nuove Carte</a></li>
     </ul>
 
@@ -238,6 +241,106 @@
                         <span class="text-light small fw-bold">Trascina qui o Tasto Dx dalla collezione</span>
                     </div>
                     <div id="dbSideDeckCards" class="row g-2 min-vh-25"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Deck Analyzer -->
+    <div id="analyzer-tab" class="tab-content" style="display: none;">
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <h4 class="mb-3">1. Seleziona un Deck</h4>
+                <div class="input-group">
+                    <select id="analyzerDeckSelect" class="form-select fw-bold" onchange="DeckAnalyzer.loadDeck(this.value)">
+                        <option value="">Seleziona un mazzo da analizzare...</option>
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-8 text-end d-flex align-items-end justify-content-end gap-2">
+                <button class="btn btn-success fw-bold px-4" onclick="DeckAnalyzer.calculateMath()">📊 Analizza Probabilità</button>
+                <button class="btn btn-outline-info" onclick="DeckAnalyzer.resetCategories()">🔄 Resetta Categorie</button>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Lista Carte e Categorie -->
+            <div class="col-lg-8 border-end border-secondary">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5 class="m-0 text-warning">2. Assegna i Ruoli</h5>
+                    <span id="analyzerDeckCount" class="badge bg-secondary">0 Carte Totali</span>
+                </div>
+                <p class="small text-light mb-3">Clicca sull'immagine per leggerne l'effetto. Assegna a ogni carta il suo ruolo. Le carte non assegnate saranno calcolate come "Brick/Engine".</p>
+                
+                <!-- Qui verranno iniettate le carte del deck -->
+                <div id="analyzerCardList" class="row g-2 overflow-auto" style="max-height: 70vh;"></div>
+            </div>
+
+            <!-- Risultati Analisi -->
+            <div class="col-lg-4">
+                <h5 class="mb-3 text-info"><i class="fas fa-chart-pie"></i> 3. Analisi e Statistiche</h5>
+                
+                <!-- Grafico e Composizione -->
+                <div class="bg-dark p-3 rounded border border-secondary mb-3 shadow">
+                    <h6 class="text-light text-center border-bottom border-secondary pb-2 mb-3">Composizione Deck (<span id="statTotalCards">0</span> carte)</h6>
+                    
+                    <div style="max-height: 200px; display: flex; justify-content: center; margin-bottom: 15px;">
+                        <canvas id="analyzerChart"></canvas>
+                    </div>
+
+                    <div class="row text-center mt-3 g-2">
+                        <div class="col-4">
+                            <div class="p-2 border border-success rounded bg-dark">
+                                <span class="d-block text-success fw-bold fs-4" id="statComboCount">0</span>
+                                <span class="small text-light">Combo</span>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-2 border border-warning rounded bg-dark">
+                                <span class="d-block text-warning fw-bold fs-4" id="statHtCount">0</span>
+                                <span class="small text-light">HT</span>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-2 border border-danger rounded bg-dark">
+                                <span class="d-block text-danger fw-bold fs-4" id="statBrickCount">0</span>
+                                <span class="small text-light">Brick</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Probabilità -->
+                <div class="bg-dark p-3 rounded border border-secondary mb-3 text-center shadow">
+                    <h6 class="text-light border-bottom border-secondary pb-2">Mano Iniziale (5 Carte)</h6>
+                    
+                    <div class="mt-3">
+                        <span class="d-block small text-secondary mb-1">Avere almeno 1 Combo (Giocabile)</span>
+                        <div class="progress" style="height: 25px; background-color: #2b2b2b;">
+                            <div id="barPlayable" class="progress-bar bg-success fw-bold text-dark fs-6" style="width: 0%;">0%</div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <span class="d-block small text-secondary mb-1">Avere 2+ Combo (Ridondanza)</span>
+                        <div class="progress" style="height: 20px; background-color: #2b2b2b;">
+                            <div id="barRedundant" class="progress-bar bg-warning text-dark fw-bold" style="width: 0%;">0%</div>
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <span class="d-block small text-secondary mb-1">Brick Totale (Solo HT/Bricks)</span>
+                        <div class="progress" style="height: 20px; background-color: #2b2b2b;">
+                            <div id="barBrick" class="progress-bar bg-danger fw-bold" style="width: 0%;">0%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Verdetto -->
+                <div class="bg-primary p-3 rounded border border-info text-center shadow">
+                    <h6 class="text-white mb-1">Verdetto del Mazzo</h6>
+                    <h4 id="analyzerVerdict" class="text-white fw-bold m-0">-</h4>
+                    <p id="analyzerVerdictDesc" class="small text-white-50 m-0 mt-1">Carica un deck e assegna i ruoli.</p>
                 </div>
             </div>
         </div>
